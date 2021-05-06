@@ -1,0 +1,31 @@
+name: regenerate patches
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: alpine:latest
+    steps:
+      - name: Fix Git Issues
+        run: apk add git bash --update-cache
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: finding patches.
+        run: |
+          cd bcachefs
+          git fetch -a
+          git fetch --tags
+          git log -n 1
+          cd ..
+          git config --global user.email "daniel@gluo.nz"
+          git config --global user.name "Daniel B. Hill"
+          bash update.sh
+          [ $? -eq 1 ] && exit 1
+          git add -u
+          git commit -am `date -I`
+          [ $? -eq 0 ] && git push origin auto-commit || echo "nothing to do"
