@@ -1,0 +1,404 @@
+diff --git a/Documentation/admin-guide/cgroup-v2.rst b/Documentation/admin-guide/cgroup-v2.rst
+index 1de8695c264b..63521cd36ce5 100644
+--- a/Documentation/admin-guide/cgroup-v2.rst
++++ b/Documentation/admin-guide/cgroup-v2.rst
+@@ -1029,7 +1029,7 @@ All time durations are in microseconds.
+ 	one number is written, $MAX is updated.
+ 
+   cpu.pressure
+-	A read-write nested-keyed file.
++	A read-only nested-key file which exists on non-root cgroups.
+ 
+ 	Shows pressure stall information for CPU. See
+ 	:ref:`Documentation/accounting/psi.rst <psi>` for details.
+@@ -1475,7 +1475,7 @@ PAGE_SIZE multiple when read back.
+ 	reduces the impact on the workload and memory management.
+ 
+   memory.pressure
+-	A read-only nested-keyed file.
++	A read-only nested-key file which exists on non-root cgroups.
+ 
+ 	Shows pressure stall information for memory. See
+ 	:ref:`Documentation/accounting/psi.rst <psi>` for details.
+@@ -1714,7 +1714,7 @@ IO Interface Files
+ 	  8:16 rbps=2097152 wbps=max riops=max wiops=max
+ 
+   io.pressure
+-	A read-only nested-keyed file.
++	A read-only nested-key file which exists on non-root cgroups.
+ 
+ 	Shows pressure stall information for IO. See
+ 	:ref:`Documentation/accounting/psi.rst <psi>` for details.
+diff --git a/MAINTAINERS b/MAINTAINERS
+index bfc1b86e3e73..64c7169db617 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -4468,7 +4468,7 @@ F:	include/linux/console*
+ 
+ CONTROL GROUP (CGROUP)
+ M:	Tejun Heo <tj@kernel.org>
+-M:	Zefan Li <lizefan.x@bytedance.com>
++M:	Li Zefan <lizefan@huawei.com>
+ M:	Johannes Weiner <hannes@cmpxchg.org>
+ L:	cgroups@vger.kernel.org
+ S:	Maintained
+@@ -4492,9 +4492,11 @@ F:	block/blk-throttle.c
+ F:	include/linux/blk-cgroup.h
+ 
+ CONTROL GROUP - CPUSET
+-M:	Zefan Li <lizefan.x@bytedance.com>
++M:	Li Zefan <lizefan@huawei.com>
+ L:	cgroups@vger.kernel.org
+ S:	Maintained
++W:	http://www.bullopensource.org/cpuset/
++W:	http://oss.sgi.com/projects/cpusets/
+ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/tj/cgroup.git
+ F:	Documentation/admin-guide/cgroup-v1/cpusets.rst
+ F:	include/linux/cpuset.h
+@@ -9559,16 +9561,14 @@ F:	drivers/hwmon/k8temp.c
+ KASAN
+ M:	Andrey Ryabinin <ryabinin.a.a@gmail.com>
+ R:	Alexander Potapenko <glider@google.com>
+-R:	Andrey Konovalov <andreyknvl@gmail.com>
+ R:	Dmitry Vyukov <dvyukov@google.com>
+ L:	kasan-dev@googlegroups.com
+ S:	Maintained
+ F:	Documentation/dev-tools/kasan.rst
+-F:	arch/*/include/asm/*kasan.h
++F:	arch/*/include/asm/kasan.h
+ F:	arch/*/mm/kasan_init*
+ F:	include/linux/kasan*.h
+-F:	lib/Kconfig.kasan
+-F:	lib/test_kasan*.c
++F:	lib/test_kasan.c
+ F:	mm/kasan/
+ F:	scripts/Makefile.kasan
+ 
+@@ -9583,7 +9583,7 @@ F:	scripts/kconfig/
+ 
+ KCOV
+ R:	Dmitry Vyukov <dvyukov@google.com>
+-R:	Andrey Konovalov <andreyknvl@gmail.com>
++R:	Andrey Konovalov <andreyknvl@google.com>
+ L:	kasan-dev@googlegroups.com
+ S:	Maintained
+ F:	Documentation/dev-tools/kcov.rst
+diff --git a/Makefile b/Makefile
+index de1acaefe87e..ade44ac4cc2f 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,8 +2,8 @@
+ VERSION = 5
+ PATCHLEVEL = 11
+ SUBLEVEL = 0
+-EXTRAVERSION =
+-NAME = 💕 Valentine's Day Edition 💕
++EXTRAVERSION = -rc7
++NAME = Kleptomaniac Octopus
+ 
+ # *DOCUMENTATION*
+ # To see a list of typical targets execute "make help"
+diff --git a/arch/h8300/kernel/asm-offsets.c b/arch/h8300/kernel/asm-offsets.c
+index d4b53af657c8..85e60509f0a8 100644
+--- a/arch/h8300/kernel/asm-offsets.c
++++ b/arch/h8300/kernel/asm-offsets.c
+@@ -63,9 +63,6 @@ int main(void)
+ 	OFFSET(TI_FLAGS, thread_info, flags);
+ 	OFFSET(TI_CPU, thread_info, cpu);
+ 	OFFSET(TI_PRE, thread_info, preempt_count);
+-#ifdef CONFIG_PREEMPTION
+-	DEFINE(TI_PRE_COUNT, offsetof(struct thread_info, preempt_count));
+-#endif
+ 
+ 	return 0;
+ }
+diff --git a/arch/m68k/include/asm/page.h b/arch/m68k/include/asm/page.h
+index 97087dd3ca6d..6116d7094292 100644
+--- a/arch/m68k/include/asm/page.h
++++ b/arch/m68k/include/asm/page.h
+@@ -62,7 +62,7 @@ extern unsigned long _ramend;
+ #include <asm/page_no.h>
+ #endif
+ 
+-#if !defined(CONFIG_MMU) || defined(CONFIG_DISCONTIGMEM)
++#ifdef CONFIG_DISCONTIGMEM
+ #define __phys_to_pfn(paddr)	((unsigned long)((paddr) >> PAGE_SHIFT))
+ #define __pfn_to_phys(pfn)	PFN_PHYS(pfn)
+ #endif
+diff --git a/arch/sparc/include/asm/Kbuild b/arch/sparc/include/asm/Kbuild
+index aec20406145e..3688fdae50e4 100644
+--- a/arch/sparc/include/asm/Kbuild
++++ b/arch/sparc/include/asm/Kbuild
+@@ -1,4 +1,6 @@
+ # SPDX-License-Identifier: GPL-2.0
++# User exported sparc header files
++
+ generated-y += syscall_table_32.h
+ generated-y += syscall_table_64.h
+ generated-y += syscall_table_c32.h
+diff --git a/arch/x86/Makefile b/arch/x86/Makefile
+index 30920d70b48b..5857917f83ee 100644
+--- a/arch/x86/Makefile
++++ b/arch/x86/Makefile
+@@ -50,9 +50,6 @@ export BITS
+ KBUILD_CFLAGS += -mno-sse -mno-mmx -mno-sse2 -mno-3dnow
+ KBUILD_CFLAGS += $(call cc-option,-mno-avx,)
+ 
+-# Intel CET isn't enabled in the kernel
+-KBUILD_CFLAGS += $(call cc-option,-fcf-protection=none)
+-
+ ifeq ($(CONFIG_X86_32),y)
+         BITS := 32
+         UTS_MACHINE := i386
+@@ -123,6 +120,9 @@ else
+ 
+         KBUILD_CFLAGS += -mno-red-zone
+         KBUILD_CFLAGS += -mcmodel=kernel
++
++	# Intel CET isn't enabled in the kernel
++	KBUILD_CFLAGS += $(call cc-option,-fcf-protection=none)
+ endif
+ 
+ ifdef CONFIG_X86_X32
+diff --git a/arch/x86/kernel/cpu/sgx/driver.c b/arch/x86/kernel/cpu/sgx/driver.c
+index 8ce6d8371cfb..f2eac41bb4ff 100644
+--- a/arch/x86/kernel/cpu/sgx/driver.c
++++ b/arch/x86/kernel/cpu/sgx/driver.c
+@@ -72,9 +72,6 @@ static int sgx_release(struct inode *inode, struct file *file)
+ 		synchronize_srcu(&encl->srcu);
+ 		mmu_notifier_unregister(&encl_mm->mmu_notifier, encl_mm->mm);
+ 		kfree(encl_mm);
+-
+-		/* 'encl_mm' is gone, put encl_mm->encl reference: */
+-		kref_put(&encl->refcount, sgx_encl_release);
+ 	}
+ 
+ 	kref_put(&encl->refcount, sgx_encl_release);
+diff --git a/arch/x86/kernel/cpu/sgx/encl.c b/arch/x86/kernel/cpu/sgx/encl.c
+index f65564a94b9b..ee50a5010277 100644
+--- a/arch/x86/kernel/cpu/sgx/encl.c
++++ b/arch/x86/kernel/cpu/sgx/encl.c
+@@ -481,9 +481,6 @@ static void sgx_mmu_notifier_free(struct mmu_notifier *mn)
+ {
+ 	struct sgx_encl_mm *encl_mm = container_of(mn, struct sgx_encl_mm, mmu_notifier);
+ 
+-	/* 'encl_mm' is going away, put encl_mm->encl reference: */
+-	kref_put(&encl_mm->encl->refcount, sgx_encl_release);
+-
+ 	kfree(encl_mm);
+ }
+ 
+@@ -537,8 +534,6 @@ int sgx_encl_mm_add(struct sgx_encl *encl, struct mm_struct *mm)
+ 	if (!encl_mm)
+ 		return -ENOMEM;
+ 
+-	/* Grab a refcount for the encl_mm->encl reference: */
+-	kref_get(&encl->refcount);
+ 	encl_mm->encl = encl;
+ 	encl_mm->mm = mm;
+ 	encl_mm->mmu_notifier.ops = &sgx_mmu_notifier_ops;
+diff --git a/arch/x86/pci/init.c b/arch/x86/pci/init.c
+index 0bb3b8b44e4e..00bfa1ebad6c 100644
+--- a/arch/x86/pci/init.c
++++ b/arch/x86/pci/init.c
+@@ -9,23 +9,16 @@
+    in the right sequence from here. */
+ static __init int pci_arch_init(void)
+ {
+-	int type, pcbios = 1;
++	int type;
++
++	x86_create_pci_msi_domain();
+ 
+ 	type = pci_direct_probe();
+ 
+ 	if (!(pci_probe & PCI_PROBE_NOEARLY))
+ 		pci_mmcfg_early_init();
+ 
+-	if (x86_init.pci.arch_init)
+-		pcbios = x86_init.pci.arch_init();
+-
+-	/*
+-	 * Must happen after x86_init.pci.arch_init(). Xen sets up the
+-	 * x86_init.irqs.create_pci_msi_domain there.
+-	 */
+-	x86_create_pci_msi_domain();
+-
+-	if (!pcbios)
++	if (x86_init.pci.arch_init && !x86_init.pci.arch_init())
+ 		return 0;
+ 
+ 	pci_pcbios_init();
+diff --git a/drivers/clk/sunxi-ng/ccu_mp.c b/drivers/clk/sunxi-ng/ccu_mp.c
+index 9d3a76604d94..fa4ecb915590 100644
+--- a/drivers/clk/sunxi-ng/ccu_mp.c
++++ b/drivers/clk/sunxi-ng/ccu_mp.c
+@@ -108,7 +108,7 @@ static unsigned long ccu_mp_round_rate(struct ccu_mux_internal *mux,
+ 	max_m = cmp->m.max ?: 1 << cmp->m.width;
+ 	max_p = cmp->p.max ?: 1 << ((1 << cmp->p.width) - 1);
+ 
+-	if (!clk_hw_can_set_rate_parent(&cmp->common.hw)) {
++	if (!(clk_hw_get_flags(hw) & CLK_SET_RATE_PARENT)) {
+ 		ccu_mp_find_best(*parent_rate, rate, max_m, max_p, &m, &p);
+ 		rate = *parent_rate / p / m;
+ 	} else {
+diff --git a/drivers/i2c/busses/i2c-stm32f7.c b/drivers/i2c/busses/i2c-stm32f7.c
+index 473fbe144b7e..9aa8e65b511e 100644
+--- a/drivers/i2c/busses/i2c-stm32f7.c
++++ b/drivers/i2c/busses/i2c-stm32f7.c
+@@ -57,8 +57,6 @@
+ #define STM32F7_I2C_CR1_RXDMAEN			BIT(15)
+ #define STM32F7_I2C_CR1_TXDMAEN			BIT(14)
+ #define STM32F7_I2C_CR1_ANFOFF			BIT(12)
+-#define STM32F7_I2C_CR1_DNF_MASK		GENMASK(11, 8)
+-#define STM32F7_I2C_CR1_DNF(n)			(((n) & 0xf) << 8)
+ #define STM32F7_I2C_CR1_ERRIE			BIT(7)
+ #define STM32F7_I2C_CR1_TCIE			BIT(6)
+ #define STM32F7_I2C_CR1_STOPIE			BIT(5)
+@@ -162,7 +160,7 @@ enum {
+ };
+ 
+ #define STM32F7_I2C_DNF_DEFAULT			0
+-#define STM32F7_I2C_DNF_MAX			15
++#define STM32F7_I2C_DNF_MAX			16
+ 
+ #define STM32F7_I2C_ANALOG_FILTER_ENABLE	1
+ #define STM32F7_I2C_ANALOG_FILTER_DELAY_MIN	50	/* ns */
+@@ -727,13 +725,6 @@ static void stm32f7_i2c_hw_config(struct stm32f7_i2c_dev *i2c_dev)
+ 	else
+ 		stm32f7_i2c_set_bits(i2c_dev->base + STM32F7_I2C_CR1,
+ 				     STM32F7_I2C_CR1_ANFOFF);
+-
+-	/* Program the Digital Filter */
+-	stm32f7_i2c_clr_bits(i2c_dev->base + STM32F7_I2C_CR1,
+-			     STM32F7_I2C_CR1_DNF_MASK);
+-	stm32f7_i2c_set_bits(i2c_dev->base + STM32F7_I2C_CR1,
+-			     STM32F7_I2C_CR1_DNF(i2c_dev->setup.dnf));
+-
+ 	stm32f7_i2c_set_bits(i2c_dev->base + STM32F7_I2C_CR1,
+ 			     STM32F7_I2C_CR1_PE);
+ }
+diff --git a/drivers/leds/flash/Kconfig b/drivers/leds/flash/Kconfig
+index b580b416b9a4..d21d273ef3da 100644
+--- a/drivers/leds/flash/Kconfig
++++ b/drivers/leds/flash/Kconfig
+@@ -5,7 +5,6 @@ if LEDS_CLASS_FLASH
+ config LEDS_RT8515
+ 	tristate "LED support for Richtek RT8515 flash/torch LED"
+ 	depends on GPIOLIB
+-	depends on V4L2_FLASH_LED_CLASS || !V4L2_FLASH_LED_CLASS
+ 	help
+ 	  This option enables support for the Richtek RT8515 flash
+ 	  and torch LEDs found on some mobile phones.
+diff --git a/drivers/scsi/scsi_debug.c b/drivers/scsi/scsi_debug.c
+index b6540b92f566..4a08c450b756 100644
+--- a/drivers/scsi/scsi_debug.c
++++ b/drivers/scsi/scsi_debug.c
+@@ -6881,7 +6881,6 @@ static void __exit scsi_debug_exit(void)
+ 
+ 	sdebug_erase_all_stores(false);
+ 	xa_destroy(per_store_ap);
+-	kfree(sdebug_q_arr);
+ }
+ 
+ device_initcall(scsi_debug_init);
+diff --git a/fs/btrfs/disk-io.c b/fs/btrfs/disk-io.c
+index 07a2b4f69b10..6b35b7e88136 100644
+--- a/fs/btrfs/disk-io.c
++++ b/fs/btrfs/disk-io.c
+@@ -3044,8 +3044,6 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
+ 		goto fail_alloc;
+ 	}
+ 
+-	fs_info->csum_size = btrfs_super_csum_size(disk_super);
+-
+ 	ret = btrfs_init_csum_hash(fs_info, csum_type);
+ 	if (ret) {
+ 		err = ret;
+@@ -3163,6 +3161,7 @@ int __cold open_ctree(struct super_block *sb, struct btrfs_fs_devices *fs_device
+ 	fs_info->nodesize = nodesize;
+ 	fs_info->sectorsize = sectorsize;
+ 	fs_info->sectorsize_bits = ilog2(sectorsize);
++	fs_info->csum_size = btrfs_super_csum_size(disk_super);
+ 	fs_info->csums_per_leaf = BTRFS_MAX_ITEM_SIZE(fs_info) / fs_info->csum_size;
+ 	fs_info->stripesize = stripesize;
+ 
+diff --git a/kernel/cgroup/cgroup-v1.c b/kernel/cgroup/cgroup-v1.c
+index a5751784ad74..32596fdbcd5b 100644
+--- a/kernel/cgroup/cgroup-v1.c
++++ b/kernel/cgroup/cgroup-v1.c
+@@ -917,9 +917,6 @@ int cgroup1_parse_param(struct fs_context *fc, struct fs_parameter *param)
+ 		for_each_subsys(ss, i) {
+ 			if (strcmp(param->key, ss->legacy_name))
+ 				continue;
+-			if (!cgroup_ssid_enabled(i) || cgroup1_ssid_disabled(i))
+-				return invalfc(fc, "Disabled controller '%s'",
+-					       param->key);
+ 			ctx->subsys_mask |= (1 << i);
+ 			return 0;
+ 		}
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 1ea995f801ec..613845769103 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -3564,7 +3564,6 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ {
+ 	struct psi_trigger *new;
+ 	struct cgroup *cgrp;
+-	struct psi_group *psi;
+ 
+ 	cgrp = cgroup_kn_lock_live(of->kn, false);
+ 	if (!cgrp)
+@@ -3573,8 +3572,7 @@ static ssize_t cgroup_pressure_write(struct kernfs_open_file *of, char *buf,
+ 	cgroup_get(cgrp);
+ 	cgroup_kn_unlock(of->kn);
+ 
+-	psi = cgroup_ino(cgrp) == 1 ? &psi_system : &cgrp->psi;
+-	new = psi_trigger_create(psi, buf, nbytes, res);
++	new = psi_trigger_create(&cgrp->psi, buf, nbytes, res);
+ 	if (IS_ERR(new)) {
+ 		cgroup_put(cgrp);
+ 		return PTR_ERR(new);
+diff --git a/scripts/Makefile b/scripts/Makefile
+index c36106bce80e..9de3c03b94aa 100644
+--- a/scripts/Makefile
++++ b/scripts/Makefile
+@@ -17,7 +17,6 @@ hostprogs-always-$(CONFIG_SYSTEM_EXTRA_CERTIFICATE)	+= insert-sys-cert
+ 
+ HOSTCFLAGS_sorttable.o = -I$(srctree)/tools/include
+ HOSTCFLAGS_asn1_compiler.o = -I$(srctree)/include
+-HOSTCFLAGS_sign-file.o = $(CRYPTO_CFLAGS)
+ HOSTLDLIBS_sign-file = $(CRYPTO_LIBS)
+ HOSTCFLAGS_extract-cert.o = $(CRYPTO_CFLAGS)
+ HOSTLDLIBS_extract-cert = $(CRYPTO_LIBS)
+diff --git a/scripts/gen_autoksyms.sh b/scripts/gen_autoksyms.sh
+index d54dfba15bf2..16c0b2ddaa4c 100755
+--- a/scripts/gen_autoksyms.sh
++++ b/scripts/gen_autoksyms.sh
+@@ -43,9 +43,6 @@ EOT
+ sed 's/ko$/mod/' $modlist |
+ xargs -n1 sed -n -e '2{s/ /\n/g;/^$/!p;}' -- |
+ cat - "$ksym_wl" |
+-# Remove the dot prefix for ppc64; symbol names with a dot (.) hold entry
+-# point addresses.
+-sed -e 's/^\.//' |
+ sort -u |
+ sed -e 's/\(.*\)/#define __KSYM_\1 1/' >> "$output_file"
+ 
+diff --git a/scripts/recordmcount.pl b/scripts/recordmcount.pl
+index 867860ea57da..56c801502b9a 100755
+--- a/scripts/recordmcount.pl
++++ b/scripts/recordmcount.pl
+@@ -265,11 +265,7 @@ if ($arch eq "x86_64") {
+ 
+     # force flags for this arch
+     $ld .= " -m shlelf_linux";
+-    if ($endian eq "big") {
+-        $objcopy .= " -O elf32-shbig-linux";
+-    } else {
+-        $objcopy .= " -O elf32-sh-linux";
+-    }
++    $objcopy .= " -O elf32-sh-linux";
+ 
+ } elsif ($arch eq "powerpc") {
+     my $ldemulation;
