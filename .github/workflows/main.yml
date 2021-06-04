@@ -18,8 +18,6 @@ jobs:
       - name: finding patches.
         run: |
           cd bcachefs
-          git fetch -a
-          git fetch --tags
           git log -n 1
           cd ..
           git config --global user.email "daniel@gluo.nz"
