@@ -8,7 +8,7 @@ rm v5.9/bcachefs*.patch
 cd bcachefs
 git fetch --shallow-since="2020-07-21"
 
-for version in "v5.11 origin/master 2020-12-20" "v5.10 origin/bcachefs-v5.10 2020-12-18" "v5.9 origin/bcachefs-v5.9 2020-07-22"; do
+for version in "v5.12 origin/master 2020-12-20" "v5.11 origin/bcachefs-v5.11 2020-12-20" "v5.10 origin/bcachefs-v5.10 2020-12-18" "v5.9 origin/bcachefs-v5.9 2020-07-22"; do
     set - $version; tag=$1; branch=$2; oldest=$3;
     echo "starting patches for $tag $branch till date $oldest"
     COMMIT=$(git log $tag..$branch --format='%ad %H %h' --date=short -n 1)
